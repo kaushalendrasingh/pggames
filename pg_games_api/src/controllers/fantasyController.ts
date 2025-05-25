@@ -1,7 +1,8 @@
-import { Request, Response } from "express";
+import { Request, Response, RequestHandler } from "express";
 import { FantasyMatch, FantasyTeam, Transaction } from "../models/ruleModel";
 import Player from "../models/playerModel";
 import User from "../models/userModel";
+import Team from "../models/teamModel";
 
 // List all fantasy matches
 export const listFantasyMatches = async (
@@ -26,6 +27,33 @@ export const listPlayersForMatch = async (req: Request, res: Response) => {
     res.status(200).json(players);
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
+  }
+};
+
+// Get all players for both teams in a fantasy match
+export const listPlayersForFantasyMatch: RequestHandler = async (req, res) => {
+  const { fantasyMatchId } = req.params;
+  try {
+    const fantasyMatch = await FantasyMatch.findById(fantasyMatchId);
+    if (!fantasyMatch) {
+      res.status(404).json({ message: 'Fantasy match not found' });
+      return;
+    }
+    const homeTeam = await Team.findById(fantasyMatch.matchId);
+    if (!homeTeam) {
+      res.status(404).json({ message: 'Home team not found' });
+      return;
+    }
+    let opponentTeam = null;
+    if (homeTeam.matches && homeTeam.matches[0] && homeTeam.matches[0].opponent) {
+      opponentTeam = await Team.findOne({ name: homeTeam.matches[0].opponent });
+    }
+    const teamIds = [homeTeam._id];
+    if (opponentTeam) teamIds.push(opponentTeam._id);
+    const players = await Player.find({ team: { $in: teamIds } });
+    res.status(200).json(players);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
   }
 };
 
@@ -66,8 +94,19 @@ export const createOrUpdateFantasyTeam = async (
   const { userId, fantasyMatchId, players, captain, viceCaptain } = req.body;
   if (!players || players.length !== 11) {
     res.status(400).json({ message: "Select exactly 11 players" });
+    return;
   }
   try {
+    const fantasyMatch = await FantasyMatch.findById(fantasyMatchId);
+    if (!fantasyMatch) {
+      res.status(404).json({ message: "Fantasy match not found" });
+      return;
+    }
+    // Check if match has started
+    if (fantasyMatch.startTime && new Date() >= new Date(fantasyMatch.startTime)) {
+      res.status(403).json({ message: "Cannot edit or create team after match has started." });
+      return;
+    }
     let team = await FantasyTeam.findOne({
       user: userId,
       fantasyMatch: fantasyMatchId,
@@ -123,3 +162,55 @@ export const declareWinners = async (
     res.status(500).json({ message: "Server error", error });
   }
 };
+
+// Get today's and upcoming matches
+export const getTodayAndUpcomingMatches = async (req: Request, res: Response) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Find fantasy matches that are active and scheduled for today or later
+    const matches = await FantasyMatch.find({ isActive: true })
+      .populate({
+        path: 'matchId',
+        model: 'Team',
+        select: 'name image matches',
+      });
+    // Filter by today's or future matches (assuming match date is in Team.matches[0].date)
+    const filtered = await Promise.all(matches.filter((fm) => {
+      const team = fm.matchId;
+      if (!team || !team.matches || !team.matches[0]) return false;
+      const matchDate = new Date(team.matches[0].date);
+      return matchDate >= today;
+    }).map(async (fm) => {
+      const homeTeam = fm.matchId;
+      let opponentTeam = null;
+      if (homeTeam && homeTeam.matches && homeTeam.matches[0]) {
+        opponentTeam = await Team.findOne({ name: homeTeam.matches[0].opponent });
+      }
+      return {
+        ...fm.toObject(),
+        homeTeam,
+        opponentTeam,
+      };
+    }));
+    res.status(200).json(filtered);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Get user's match history (matches user has joined)
+export const getUserMatchHistory = async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  try {
+    const teams = await FantasyTeam.find({ user: userId })
+      .populate({
+        path: 'fantasyMatch',
+        populate: { path: 'matchId', model: 'Team', select: 'name image matches' },
+      })
+      .sort({ createdAt: -1 });
+    res.status(200).json(teams);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+}

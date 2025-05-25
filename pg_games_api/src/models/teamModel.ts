@@ -12,6 +12,7 @@ export interface ITeam extends Document {
   matches: IMatch[];
   subcategory: mongoose.Types.ObjectId;
   players: mongoose.Types.ObjectId[]; // Array of player IDs
+  image?: string; // URL or path to team logo
 }
 
 const MatchSchema: Schema = new Schema(
@@ -30,6 +31,7 @@ const TeamSchema: Schema = new Schema(
     matches: [MatchSchema],
     subcategory: { type: mongoose.Schema.Types.ObjectId, ref: 'Category.subcategories', required: true },
     players: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Player' }], // Reference to players
+    image: { type: String }, // Team logo URL
   },
   { timestamps: true }
 );

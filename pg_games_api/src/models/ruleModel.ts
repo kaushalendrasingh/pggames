@@ -27,6 +27,7 @@ export interface IFantasyMatch extends Document {
   entryFee: number;
   isActive: boolean;
   winners: mongoose.Types.ObjectId[]; // User IDs
+  startTime: Date; // New field for match start time
 }
 
 const FantasyMatchSchema: Schema = new Schema(
@@ -35,6 +36,7 @@ const FantasyMatchSchema: Schema = new Schema(
     entryFee: { type: Number, default: 49 },
     isActive: { type: Boolean, default: true },
     winners: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    startTime: { type: Date, required: true }, // New field
   },
   { timestamps: true }
 );

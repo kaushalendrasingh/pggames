@@ -28,6 +28,8 @@ export const registerUser = async (
       password: hashedPassword,
       first_name,
       last_name,
+      withdrawable: 0,
+      nonWithdrawable: 100,
     });
 
     await newUser.save();
@@ -78,5 +80,42 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     res.status(200).json({ message: "Login successful", token });
   } catch (error) {
     res.status(500).json({ message: "Server error", error });
+  }
+};
+
+// Get user wallet info
+export const getUserWallet = async (req: Request, res: Response): Promise<void> => {
+  const userId = req.params.userId;
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+    res.status(200).json({
+      withdrawable: user.withdrawable,
+      nonWithdrawable: user.nonWithdrawable,
+      total: user.withdrawable + user.nonWithdrawable,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
+  }
+};
+
+// Get user profile
+export const getUserProfile = async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+    res.status(200).json({
+      username: user.username,
+      email: user.email,
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error });
   }
 };

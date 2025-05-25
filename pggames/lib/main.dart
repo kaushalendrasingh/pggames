@@ -2,5 +2,5 @@ import 'package:flutter/material.dart';
 import 'app.dart';
 
 void main() {
-  runApp(const PGGamesApp());
+  runApp(const MaterialApp(home: MainApp(), debugShowCheckedModeBanner: false));
 }
